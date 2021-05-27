@@ -2,15 +2,14 @@ import asyncio
 import inspect
 import itertools
 import random
-import sys
 import time
-import traceback
 import typing
-import logging
+from copy import copy
 
-from .. import events, utils, errors
+from .. import events, utils, errors, statecache
 from ..events.common import EventBuilder, EventCommon
 from ..tl import types, functions
+from ..tl.types import UpdateChannelTooLong
 
 if typing.TYPE_CHECKING:
     from .telegramclient import TelegramClient
@@ -224,7 +223,126 @@ class UpdateMethods:
         """
         return [(callback, event) for event, callback in self._event_builders]
 
-    async def catch_up(self: 'TelegramClient'):
+    async def _process_postponed_updates(self):
+        # Copying because postponed_updates can contain updates from
+        # channels which weren't processed yet
+        postponed_updates = copy(self._state_cache.postponed_updates)
+        self._state_cache.postponed_updates.clear()
+        for update in postponed_updates:
+            self._handle_update(update)
+
+
+    async def _catch_up_common(self: 'TelegramClient', pts_total_limit: int):
+        print('------ START CATCH UP COMMON')  # TODO: remove
+        pts, qts, date = self._state_cache[None]
+        channels_to_fetch = []
+        try:
+            if not pts:
+                # Ran first time, get initial pts, qts and date and return
+                result = await self(functions.updates.GetStateRequest())
+                pts, qts, date = result.pts, result.qts, result.date
+                return
+            if not qts:
+                qts = 0
+
+            while True:
+                d = await self(functions.updates.GetDifferenceRequest(
+                    pts, date, qts, pts_total_limit
+                ))
+                if isinstance(d, (types.updates.DifferenceSlice,
+                                  types.updates.Difference)):
+                    if isinstance(d, types.updates.Difference):
+                        state = d.state
+                    else:
+                        state = d.intermediate_state
+
+                    updates = []
+                    for update in d.other_updates:
+                        if isinstance(update, UpdateChannelTooLong):
+                            channels_to_fetch.append((update.channel_id, update.pts))
+                            self._state_cache.catching_up[update.channel_id] = True
+                            print(update.channel_id)  # TODO: remove
+                        else:
+                            updates.append(update)
+
+                    pts, qts, date = state.pts, state.qts, state.date
+                    self._handle_update(types.Updates(
+                        users=d.users,
+                        chats=d.chats,
+                        date=state.date,
+                        seq=state.seq,
+                        updates=updates + [
+                            types.UpdateNewMessage(m, 0, 0)
+                            for m in d.new_messages
+                        ]
+                    ), from_catch_up=True)
+                elif isinstance(d, types.updates.DifferenceTooLong):
+                    pts = d.pts
+                    # If the limit isn't set, fetch all updates that we can
+                    if pts_total_limit is not None:
+                        break
+                elif isinstance(d, types.updates.DifferenceEmpty):
+                    date = d.date
+                    break
+        except (ConnectionError, asyncio.CancelledError):
+            pass
+        finally:
+            self._state_cache[None] = (pts, qts, date)
+            self._state_cache.catching_up[0] = False
+            self._update_state_for(None)
+
+            print(f'------ PROCESSING POSTPONED COMMON')  # TODO: remove
+            await self._process_postponed_updates()
+
+            print('------ END CATCH UP COMMON')  # TODO: remove
+            return channels_to_fetch
+
+    async def _catch_up_channel(self: 'TelegramClient', channel_id: int, pts: int, limit: int):
+        print(f'------ START CATCH UP {channel_id}')  # TODO: remove
+        if self._state_cache[channel_id]:
+            pts = self._state_cache[channel_id]
+
+        try:
+            if not pts:
+                # Ran first time, get initial pts and return
+                result = await self(functions.channels.GetFullChannelRequest(channel_id))
+                pts = result.full_chat.pts
+                return
+            while True:
+                d = await self(functions.updates.GetChannelDifferenceRequest(
+                    channel=channel_id,
+                    filter=types.ChannelMessagesFilterEmpty(),
+                    pts=pts,
+                    limit=limit or 100000  # If the limit isn't set, fetch all updates that we can
+                ))
+                if isinstance(d, types.updates.ChannelDifference):
+                    pts = d.pts
+                    self._handle_update(types.Updates(
+                        users=d.users,
+                        chats=d.chats,
+                        date=None,
+                        seq=0,
+                        updates=d.other_updates + [
+                            types.UpdateNewChannelMessage(m, 0, 0)
+                            for m in d.new_messages
+                        ]
+                    ), from_catch_up=True)
+                elif isinstance(d, (types.updates.ChannelDifferenceTooLong,
+                                    types.updates.ChannelDifferenceEmpty)):
+                    # If there are too many updates (ChannelDifferenceTooLong),
+                    # there is no way to get them without raising limit or GetHistoryRequest, so just break
+                    break
+        finally:
+            self._state_cache[channel_id] = pts
+            self._state_cache.catching_up[channel_id] = False
+            self._update_state_for(channel_id)
+
+            print(f'------ PROCESSING POSTPONED {channel_id}')  # TODO: remove
+            await self._process_postponed_updates()
+
+            print(f'------ END CATCH UP {channel_id}')  # TODO: remove
+
+    async def catch_up(self: 'TelegramClient', pts_total_limit=None, limit=1000):
         """
         "Catches up" on the missed updates while the client was offline.
         You should call this method after registering the event handlers
@@ -237,86 +355,76 @@ class UpdateMethods:
 
                 await client.catch_up()
         """
-        pts, date = self._state_cache[None]
-        if not pts:
+        if self._state_cache.catching_up.get(None, False):
+            # Catch-up already in progress, return
             return
 
-        self.session.catching_up = True
-        try:
-            while True:
-                d = await self(functions.updates.GetDifferenceRequest(
-                    pts, date, 0
-                ))
-                if isinstance(d, (types.updates.DifferenceSlice,
-                                  types.updates.Difference)):
-                    if isinstance(d, types.updates.Difference):
-                        state = d.state
-                    else:
-                        state = d.intermediate_state
+        self._state_cache.reset_catching_up()
+        self._state_cache.catching_up[None] = True  # Global flag
 
-                    pts, date = state.pts, state.date
-                    self._handle_update(types.Updates(
-                        users=d.users,
-                        chats=d.chats,
-                        date=state.date,
-                        seq=state.seq,
-                        updates=d.other_updates + [
-                            types.UpdateNewMessage(m, 0, 0)
-                            for m in d.new_messages
-                        ]
-                    ))
+        channels_to_fetch = await self._catch_up_common(pts_total_limit)
+        for channel_id, channel_pts in channels_to_fetch:
+            await self._catch_up_channel(channel_id, channel_pts, limit)
 
-                    # TODO Implement upper limit (max_pts)
-                    # We don't want to fetch updates we already know about.
-                    #
-                    # We may still get duplicates because the Difference
-                    # contains a lot of updates and presumably only has
-                    # the state for the last one, but at least we don't
-                    # unnecessarily fetch too many.
-                    #
-                    # updates.getDifference's pts_total_limit seems to mean
-                    # "how many pts is the request allowed to return", and
-                    # if there is more than that, it returns "too long" (so
-                    # there would be duplicate updates since we know about
-                    # some). This can be used to detect collisions (i.e.
-                    # it would return an update we have already seen).
-                else:
-                    if isinstance(d, types.updates.DifferenceEmpty):
-                        date = d.date
-                    elif isinstance(d, types.updates.DifferenceTooLong):
-                        pts = d.pts
-                    break
-        except (ConnectionError, asyncio.CancelledError):
-            pass
-        finally:
-            # TODO Save new pts to session
-            self._state_cache._pts_date = (pts, date)
-            self.session.catching_up = False
+        self._state_cache.catching_up[None] = False
+        print(f'------ END CATCH UP ALL')  # TODO: remove
 
     # endregion
 
     # region Private methods
 
+    def _should_postpone_update(self: 'TelegramClient', update, from_catch_up) -> bool:
+        # Update from MTProtoSender and catch up in progress
+        print(self._state_cache.catching_up, from_catch_up)
+        if not from_catch_up and self._state_cache.catching_up.get(None, False):
+            channel_id = self._state_cache.get_channel_id(update)
+            if self._state_cache.catching_up.get(0, False) or \
+                    (channel_id and self._state_cache.catching_up.get(channel_id, False)):
+                # Catching up common now or update belongs to channel and
+                # we haven't finished catching up that channel yet
+                return True
+        return False
+
     # It is important to not make _handle_update async because we rely on
     # the order that the updates arrive in to update the pts and date to
     # be always-increasing. There is also no need to make this async.
-    def _handle_update(self: 'TelegramClient', update):
+    def _handle_update(self: 'TelegramClient', update, from_catch_up=False):
+        if self._should_postpone_update(update, from_catch_up):
+            print('postponing', from_catch_up, update)  # TODO: remove
+            self._state_cache.postponed_updates.append(update)
+            return
+        if self._state_cache.update_already_processed(update):
+            print('dropping', update)  # TODO: remove
+            return
+        print('not dropping', from_catch_up, update)  # TODO: remove
+
         self.session.process_entities(update)
         self._entity_cache.add(update)
+        result = False
 
         if isinstance(update, (types.Updates, types.UpdatesCombined)):
             entities = {utils.get_peer_id(x): x for x in
                         itertools.chain(update.users, update.chats)}
             for u in update.updates:
-                self._process_update(u, update.updates, entities=entities)
+                self._process_update(u, update.updates, entities=entities, from_catch_up=from_catch_up)
         elif isinstance(update, types.UpdateShort):
-            self._process_update(update.update, None)
+            self._process_update(update.update, None, from_catch_up=from_catch_up)
         else:
-            self._process_update(update, None)
+            self._process_update(update, None, from_catch_up=from_catch_up)
 
         self._state_cache.update(update)
 
-    def _process_update(self: 'TelegramClient', update, others, entities=None):
+    def _process_update(self: 'TelegramClient', update, others, entities=None, from_catch_up=False):
+        if self._should_postpone_update(update, from_catch_up):
+            print('postponing', from_catch_up, update)  # TODO: remove
+            self._state_cache.postponed_updates.append(update)
+            return
+        if self._state_cache.update_already_processed(update):
+            print('dropping', update)  # TODO: remove
+            return
+        print('not dropping', from_catch_up, update)  # TODO: remove
+        time.sleep(0.1)  # TODO: remove
+
         update._entities = entities or {}
 
         # This part is somewhat hot so we don't bother patching
@@ -368,10 +476,10 @@ class UpdateMethods:
             except (ConnectionError, asyncio.CancelledError):
                 return
 
-            # Entities and cached files are not saved when they are
-            # inserted because this is a rather expensive operation
-            # (default's sqlite3 takes ~0.1s to commit changes). Do
-            # it every minute instead. No-op if there's nothing new.
+            # Entities, cached files and update states are not saved
+            # when they are inserted because this is a rather expensive
+            # operation (default's sqlite3 takes ~0.1s to commit changes).
+            # Do it every minute instead. No-op if there's nothing new.
             self.session.save()
 
             # We need to send some content-related request at least hourly
@@ -553,6 +661,7 @@ class UpdateMethods:
                     utils.get_input_channel(where)
                 ))
                 self._state_cache[channel_id] = result.full_chat.pts
+                self._update_state_for(channel_id)
                 return
 
             result = await self(functions.updates.GetChannelDifferenceRequest(
@@ -566,7 +675,8 @@ class UpdateMethods:
             if not pts_date[0]:
                 # First-time, can't get difference. Get pts instead.
                 result = await self(functions.updates.GetStateRequest())
-                self._state_cache[None] = result.pts, result.date
+                self._state_cache[None] = result.pts, result.qts, result.date
+                self._update_state_for(None)
                 return
 
             result = await self(functions.updates.GetDifferenceRequest(
@@ -585,38 +695,9 @@ class UpdateMethods:
             })
 
     async def _handle_auto_reconnect(self: 'TelegramClient'):
-        # TODO Catch-up
-        # For now we make a high-level request to let Telegram
-        # know we are still interested in receiving more updates.
-        try:
-            await self.get_me()
-        except Exception as e:
-            self._log[__name__].warning('Error executing high-level request '
-                                        'after reconnect: %s: %s', type(e), e)
-
-        return
         try:
             self._log[__name__].info(
                 'Asking for the current state after reconnect...')
-
-            # TODO consider:
-            # If there aren't many updates while the client is disconnected
-            # (I tried with up to 20), Telegram seems to send them without
-            # asking for them (via updates.getDifference).
-            #
-            # On disconnection, the library should probably set a "need
-            # difference" or "catching up" flag so that any new updates are
-            # ignored, and then the library should call updates.getDifference
-            # itself to fetch them.
-            #
-            # In any case (either there are too many updates and Telegram
-            # didn't send them, or there isn't a lot and Telegram sent them
-            # but we dropped them), we fetch the new difference to get all
-            # missed updates. I feel like this would be the best solution.
-
-            # If a disconnection occurs, the old known state will be
-            # the latest one we were aware of, so we can catch up since
-            # the most recent state we were aware of.
             await self.catch_up()
 
             self._log[__name__].info('Successfully fetched missed updates')
