@@ -6,6 +6,7 @@ from .messagebutton import MessageButton
 from .forward import Forward
 from .file import File
 from .. import TLObject, types, functions, alltlobjects
+from ..types import MessageReactions
 from ... import utils, errors
 
 
@@ -196,6 +197,8 @@ class Message(ChatGetter, SenderGetter, TLObject):
             restriction_reason: Optional[types.TypeRestrictionReason] = None,
             forwards: Optional[int] = None,
             replies: Optional[types.TypeMessageReplies] = None,
+            noforwards: Optional[bool] = None,
+            reactions: Optional[MessageReactions] = None,
 
             # For MessageAction (mandatory)
             action: Optional[types.TypeMessageAction] = None
@@ -230,6 +233,8 @@ class Message(ChatGetter, SenderGetter, TLObject):
         self.restriction_reason = restriction_reason
         self.ttl_period = ttl_period
         self.action = action
+        self.noforwards = noforwards
+        self.reactions = reactions
 
         # Convenient storage for custom functions
         # TODO This is becoming a bit of bloat

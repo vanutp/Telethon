@@ -13,7 +13,7 @@ from ..tl.types import (
     MessageEntityPre, MessageEntityEmail, MessageEntityUrl,
     MessageEntityTextUrl, MessageEntityMentionName,
     MessageEntityUnderline, MessageEntityStrike, MessageEntityBlockquote,
-    TypeMessageEntity
+    TypeMessageEntity, MessageEntitySpoiler
 )
 
 
@@ -90,6 +90,16 @@ class HTMLToTelegramParser(HTMLParser):
                     url = None
             self._open_tags_meta.popleft()
             self._open_tags_meta.appendleft(url)
+        elif (
+            tag == 'sp' or
+            tag == 'spoiler' or
+            tag == 'tg-spoiler' or
+            (
+                tag == 'span' and
+                attrs['class'].strip() == 'tg-spoiler'
+            )
+        ):
+            EntityType = MessageEntitySpoiler
 
         if EntityType and tag not in self._building_entities:
             self._building_entities[tag] = EntityType(
@@ -218,6 +228,8 @@ def unparse(text: str, entities: Iterable[TypeMessageEntity], _offset: int = 0,
         elif entity_type == MessageEntityMentionName:
             html.append('<a href="tg://user?id={}">{}</a>'
                         .format(entity.user_id, entity_text))
+        elif entity_type == MessageEntitySpoiler:
+            html.append('<tg-spoiler>{}</tg-spoiler>'.format(entity_text))
         else:
             skip_entity = True
         last_offset = relative_offset + (0 if skip_entity else length)
