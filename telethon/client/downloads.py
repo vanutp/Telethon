@@ -1,14 +1,13 @@
+import asyncio
 import datetime
+import inspect
 import io
 import os
 import pathlib
 import typing
-import inspect
-import asyncio
-
-from ..crypto import AES
 
 from .. import utils, helpers, errors, hints
+from ..crypto import AES
 from ..requestiter import RequestIter
 from ..tl import TLObject, types, functions
 
@@ -91,7 +90,7 @@ class _DirectDownloadIter(RequestIter):
             return await self._request()
 
         except errors.FileMigrateError as e:
-            self.client._log[__name__].info('File lives in another DC')
+            self.client._log[__name__].debug('File lives in another DC')
             self._sender = await self.client._borrow_exported_sender(e.new_dc)
             self._exported = True
             return await self._request()
@@ -402,7 +401,7 @@ class DownloadMethods:
             if isinstance(message.action,
                           types.MessageActionChatEditPhoto):
                 media = media.photo
-       
+
         if isinstance(media, types.MessageMediaWebPage):
             if isinstance(media.webpage, types.WebPage):
                 media = media.webpage.document or media.webpage.photo
@@ -708,12 +707,12 @@ class DownloadMethods:
                 and stride % MIN_CHUNK_SIZE == 0 \
                 and (limit is None or offset % limit == 0):
             cls = _DirectDownloadIter
-            self._log[__name__].info('Starting direct file download in chunks of '
-                                     '%d at %d, stride %d', request_size, offset, stride)
+            self._log[__name__].debug('Starting direct file download in chunks of '
+                                      '%d at %d, stride %d', request_size, offset, stride)
         else:
             cls = _GenericDownloadIter
-            self._log[__name__].info('Starting indirect file download in chunks of '
-                                     '%d at %d, stride %d', request_size, offset, stride)
+            self._log[__name__].debug('Starting indirect file download in chunks of '
+                                      '%d at %d, stride %d', request_size, offset, stride)
 
         return cls(
             self,
