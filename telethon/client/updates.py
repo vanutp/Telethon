@@ -366,7 +366,6 @@ class UpdateMethods:
 
     def _should_postpone_update(self: 'TelegramClient', update, from_catch_up) -> bool:
         # Update from MTProtoSender and catch up in progress
-        print(self._state_cache.catching_up, from_catch_up)
         if not from_catch_up and self._state_cache.catching_up.get(None, False):
             channel_id = self._state_cache.get_channel_id(update)
             if self._state_cache.catching_up.get(0, False) or \
