@@ -233,7 +233,6 @@ class UpdateMethods:
 
 
     async def _catch_up_common(self: 'TelegramClient', pts_total_limit: int):
-        print('------ START CATCH UP COMMON')  # TODO: remove
         pts, qts, date = self._state_cache[None]
         channels_to_fetch = []
         try:
@@ -261,7 +260,6 @@ class UpdateMethods:
                         if isinstance(update, UpdateChannelTooLong):
                             channels_to_fetch.append((update.channel_id, update.pts))
                             self._state_cache.catching_up[update.channel_id] = True
-                            print(update.channel_id)  # TODO: remove
                         else:
                             updates.append(update)
 
@@ -291,14 +289,11 @@ class UpdateMethods:
             self._state_cache.catching_up[0] = False
             self._update_state_for(None)
 
-            print(f'------ PROCESSING POSTPONED COMMON')  # TODO: remove
             await self._process_postponed_updates()
 
-            print('------ END CATCH UP COMMON')  # TODO: remove
             return channels_to_fetch
 
     async def _catch_up_channel(self: 'TelegramClient', channel_id: int, pts: int, limit: int):
-        print(f'------ START CATCH UP {channel_id}')  # TODO: remove
         if self._state_cache[channel_id]:
             pts = self._state_cache[channel_id]
 
@@ -337,10 +332,7 @@ class UpdateMethods:
             self._state_cache.catching_up[channel_id] = False
             self._update_state_for(channel_id)
 
-            print(f'------ PROCESSING POSTPONED {channel_id}')  # TODO: remove
             await self._process_postponed_updates()
-
-            print(f'------ END CATCH UP {channel_id}')  # TODO: remove
 
     async def catch_up(self: 'TelegramClient', pts_total_limit=None, limit=1000):
         """
@@ -367,7 +359,6 @@ class UpdateMethods:
             await self._catch_up_channel(channel_id, channel_pts, limit)
 
         self._state_cache.catching_up[None] = False
-        print(f'------ END CATCH UP ALL')  # TODO: remove
 
     # endregion
 
@@ -390,13 +381,10 @@ class UpdateMethods:
     # be always-increasing. There is also no need to make this async.
     def _handle_update(self: 'TelegramClient', update, from_catch_up=False):
         if self._should_postpone_update(update, from_catch_up):
-            print('postponing', from_catch_up, update)  # TODO: remove
             self._state_cache.postponed_updates.append(update)
             return
         if self._state_cache.update_already_processed(update):
-            print('dropping', update)  # TODO: remove
             return
-        print('not dropping', from_catch_up, update)  # TODO: remove
 
         self.session.process_entities(update)
         self._entity_cache.add(update)
@@ -416,14 +404,10 @@ class UpdateMethods:
 
     def _process_update(self: 'TelegramClient', update, others, entities=None, from_catch_up=False):
         if self._should_postpone_update(update, from_catch_up):
-            print('postponing', from_catch_up, update)  # TODO: remove
             self._state_cache.postponed_updates.append(update)
             return
         if self._state_cache.update_already_processed(update):
-            print('dropping', update)  # TODO: remove
             return
-        print('not dropping', from_catch_up, update)  # TODO: remove
-        time.sleep(0.1)  # TODO: remove
 
         update._entities = entities or {}
 
