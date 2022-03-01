@@ -382,8 +382,6 @@ class UpdateMethods:
         if self._should_postpone_update(update, from_catch_up):
             self._state_cache.postponed_updates.append(update)
             return
-        if self._state_cache.update_already_processed(update):
-            return
 
         self.session.process_entities(update)
         self._entity_cache.add(update)
@@ -404,8 +402,6 @@ class UpdateMethods:
     def _process_update(self: 'TelegramClient', update, others, entities=None, from_catch_up=False):
         if self._should_postpone_update(update, from_catch_up):
             self._state_cache.postponed_updates.append(update)
-            return
-        if self._state_cache.update_already_processed(update):
             return
 
         update._entities = entities or {}

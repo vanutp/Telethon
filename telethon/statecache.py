@@ -138,22 +138,6 @@ class StateCache:
             else:
                 self._store[channel_id] = update.pts
 
-    def update_already_processed(self, update):
-        cid = update.CONSTRUCTOR_ID
-        # If pts == 0, the update is from catch_up
-        if cid in has_pts and \
-                update.pts != 0 and \
-                self._pts_date[0] >= update.pts:
-            return True
-        if cid in has_qts and update.qts >= self._pts_date[1]:
-            return True
-        if cid in has_channel_pts:
-            channel_id = self.get_channel_id(update)
-            if update.pts != 0 and \
-                    self._store.get(channel_id, 0) >= update.pts:
-                return True
-        return False
-
     def get_channel_id(
             self,
             update,
