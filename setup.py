@@ -192,7 +192,7 @@ def main(argv):
             version = re.search(r"^__version__\s*=\s*'(.*)'.*$",
                                 f.read(), flags=re.MULTILINE).group(1)
         setup(
-            name='Telethon',
+            name='Telethon-v1.24',
             version=version,
             description="Full-featured Telegram client library for Python 3",
             long_description=long_description,
