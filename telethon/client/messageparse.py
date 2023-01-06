@@ -87,7 +87,7 @@ class MessageParseMethods:
         message, msg_entities = parse_mode.parse(message)
         if original_message and not message and not msg_entities:
             raise ValueError("Failed to parse message")
-        
+
         for i in reversed(range(len(msg_entities))):
             e = msg_entities[i]
             if isinstance(e, types.MessageEntityTextUrl):
@@ -97,6 +97,12 @@ class MessageParseMethods:
                     is_mention = await self._replace_with_mention(msg_entities, i, user)
                     if not is_mention:
                         del msg_entities[i]
+                m = re.match(r'^tg://emoji\?id=(\d+)$', e.url)
+                if m:
+                    document_id = int(m.group(1))
+                    msg_entities[i] = types.MessageEntityCustomEmoji(
+                        e.offset, e.length, document_id
+                    )
             elif isinstance(e, (types.MessageEntityMentionName,
                                 types.InputMessageEntityMentionName)):
                 is_mention = await self._replace_with_mention(msg_entities, i, e.user_id)

@@ -19,7 +19,7 @@ from collections import namedtuple
 from mimetypes import guess_extension
 from types import GeneratorType
 
-from .extensions import markdown, html
+from .extensions.markup import markdown, html
 from .helpers import add_surrogate, del_surrogate, strip_text
 from .tl import types
 

@@ -1,7 +1,7 @@
 """
 Tests for `telethon.extensions.html`.
 """
-from telethon.extensions import html
+from telethon.extensions.markup import html
 from telethon.tl.types import MessageEntityBold, MessageEntityItalic, MessageEntityTextUrl
 
 
@@ -12,7 +12,7 @@ def test_entity_edges():
     text = 'Hello, world'
     entities = [MessageEntityBold(0, 5), MessageEntityBold(7, 5)]
     result = html.unparse(text, entities)
-    assert result == '<strong>Hello</strong>, <strong>world</strong>'
+    assert result == '<b>Hello</b>, <b>world</b>'
 
 
 def test_malformed_entities():
@@ -42,7 +42,7 @@ def test_entities_together():
     """
     Test that an entity followed immediately by a different one behaves well.
     """
-    original = '<strong>⚙️</strong><em>Settings</em>'
+    original = '<b>⚙️</b><i>Settings</i>'
     stripped = '⚙️Settings'
 
     text, entities = html.parse(original)
@@ -59,7 +59,7 @@ def test_offset_at_emoji():
     """
     text = 'Hi\n👉 See example'
     entities = [MessageEntityBold(0, 2), MessageEntityItalic(3, 2), MessageEntityBold(10, 7)]
-    parsed = '<strong>Hi</strong>\n<em>👉</em> See <strong>example</strong>'
+    parsed = '<b>Hi</b>\n<i>👉</i> See <b>example</b>'
 
     assert html.parse(parsed) == (text, entities)
     assert html.unparse(text, entities) == parsed

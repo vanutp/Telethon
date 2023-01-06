@@ -4,7 +4,7 @@ from .. import TLObject
 from ..functions.messages import SaveDraftRequest
 from ..types import DraftMessage
 from ...errors import RPCError
-from ...extensions import markdown
+from ...extensions.markup import markdown
 from ...utils import get_input_peer, get_peer
 
 
