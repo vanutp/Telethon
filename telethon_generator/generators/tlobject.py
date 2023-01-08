@@ -32,7 +32,7 @@ AUTO_CASTS = {
 }
 
 NAMED_AUTO_CASTS = {
-    ('chat_id', 'int'): 'await client.get_peer_id({}, add_mark=False)'
+    ('chat_id', 'long'): 'await client.get_peer_id({}, add_mark=False)'
 }
 
 # Secret chats have a chat_id which may be negative.
