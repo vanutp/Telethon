@@ -194,14 +194,14 @@ def main(argv):
         setup(
             name='Telethon-v1.24',
             version=version,
-            description="Full-featured Telegram client library for Python 3",
+            description="Updated fork of 1.24 branch of Telethon, primarily used by TGPy",
             long_description=long_description,
 
-            url='https://github.com/LonamiWebs/Telethon',
-            download_url='https://github.com/LonamiWebs/Telethon/releases',
+            url='https://github.com/vanutp/Telethon',
+            download_url='https://github.com/vanutp/Telethon/releases',
 
-            author='Lonami Exo',
-            author_email='totufals@hotmail.com',
+            author='vanutp',
+            author_email='hello@vanutp.dev',
 
             license='MIT',
 
@@ -227,6 +227,9 @@ def main(argv):
                 'Programming Language :: Python :: 3.6',
                 'Programming Language :: Python :: 3.7',
                 'Programming Language :: Python :: 3.8',
+                'Programming Language :: Python :: 3.9',
+                'Programming Language :: Python :: 3.10',
+                'Programming Language :: Python :: 3.11',
             ],
             keywords='telegram api chat client library messaging mtproto',
             packages=find_packages(exclude=[
