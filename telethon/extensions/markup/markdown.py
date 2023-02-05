@@ -15,7 +15,7 @@ DELIMITERS = {
     '```': types.MessageEntityPre,
 }
 
-QUOTE_PATTERN = re.compile(r"([_*\[\]()~`>#+\-=|{}.!\\])")
+QUOTE_PATTERN = re.compile(r"([_*\[\]()~`|\\])")
 URL_RE = re.compile(r'\[([\S\s]+?)\]\((.+?)\)')
 URL_FORMAT = '[{0}]({1})'
 
