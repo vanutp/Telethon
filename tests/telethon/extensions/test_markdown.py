@@ -11,7 +11,6 @@ from telethon.tl.types import (
     MessageEntityUnderline,
     MessageEntityStrike,
     MessageEntitySpoiler,
-    MessageEntityCustomEmoji,
 )
 
 
@@ -149,8 +148,6 @@ def test_entities_inside_url():
         MessageEntityCode(offset=44, length=4),
         MessageEntityTextUrl(offset=0, length=48, url='https://vanutp.dev/\\'),
     ]
-    # t, e = markdown.parse(original)
-    # print(', '.join(x.stringify() for x in e))
 
     assert markdown.parse(original) == (stripped, entities)
     assert markdown.unparse(stripped, entities) == original
@@ -206,3 +203,22 @@ pre-formatted fixed-width code block written in the Python programming language'
 
     assert markdown.parse(original) == (stripped, entities)
     assert markdown.unparse(stripped, entities) == original
+
+
+def test_italic_underline():
+    """
+    Tests that italic and underline can be used together.
+    """
+    original = '___italic underline_\r__ no entity'
+    stripped = 'italic underline no entity'
+    entities = [
+        MessageEntityItalic(offset=0, length=16),
+        MessageEntityUnderline(offset=0, length=16),
+    ]
+    expected = [
+        original,
+        '_\r__italic underline___ no entity',
+    ]
+
+    assert markdown.parse(original) == (stripped, entities)
+    assert markdown.unparse(stripped, entities) in expected

@@ -35,8 +35,12 @@ class MarkdownDecoration(TextDecoration):
         if type_ == types.MessageEntityBold:
             return f"*{text}*"
         elif type_ == types.MessageEntityItalic:
+            if text.startswith('_'):
+                return f"_\r{text}_"
             return f"_{text}_"
         elif type_ == types.MessageEntityUnderline:
+            if text.endswith('_'):
+                return f"__{text}\r__"
             return f"__{text}__"
         elif type_ == types.MessageEntityStrike:
             return f"~{text}~"
@@ -87,6 +91,11 @@ class MarkdownDecoration(TextDecoration):
         result = []
         delimiters_stack = []
         while i < len(text):
+            if text[i] == '\r':
+                # Remove \r, as in the TDLib/Bot API parser
+                text = text[:i] + text[i + 1 :]
+                continue
+
             last_opened_delim = (
                 delimiters_stack[-1] if delimiters_stack else (None, None)
             )
