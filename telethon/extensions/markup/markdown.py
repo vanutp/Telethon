@@ -1,10 +1,12 @@
 import re
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 from telethon import helpers
-from telethon.extensions.markup.base import TextDecoration
+from telethon.extensions.markup.base import TextDecoration, ParseError
 from telethon.tl import types
 
+
+URL_ENTITY = object()
 DELIMITERS = {
     '*': types.MessageEntityBold,
     '_': types.MessageEntityItalic,
@@ -13,11 +15,14 @@ DELIMITERS = {
     '||': types.MessageEntitySpoiler,
     '`': types.MessageEntityCode,
     '```': types.MessageEntityPre,
+    '[': URL_ENTITY,
+    ']': URL_ENTITY,
 }
 
-QUOTE_PATTERN = re.compile(r"([_*\[\]()~`|\\])")
-URL_RE = re.compile(r'\[([\S\s]+?)\]\((.+?)\)')
+QUOTE_PATTERN = re.compile(r'([_*\[\]()~`|\\])')
+URL_RE = re.compile(r'\((.+?)\)')
 URL_FORMAT = '[{0}]({1})'
+LANG_RE = re.compile(r'[a-zA-Z0-9_-]{1,64}')
 
 
 def overlap(a, b, x, y):
@@ -51,10 +56,13 @@ class MarkdownDecoration(TextDecoration):
             return URL_FORMAT.format(text, f'tg://user?id={entity.user_id}')
         elif type_ == types.MessageEntityCustomEmoji:
             return URL_FORMAT.format(text, f'tg://emoji?id={entity.document_id}')
-        return self.quote(text)
+        return self.quote(text, entity)
 
-    def quote(self, value: str) -> str:
-        return re.sub(pattern=QUOTE_PATTERN, repl=r"\\\1", string=value)
+    def quote(self, value: str, entity: Optional[types.TypeMessageEntity]) -> str:
+        if isinstance(entity, (types.MessageEntityPre, types.MessageEntityCode)):
+            return value
+        else:
+            return QUOTE_PATTERN.sub(r'\\\1', value)
 
     def parse(self, text: str) -> Tuple[str, List[types.TypeMessageEntity]]:
         if not text:
@@ -70,83 +78,98 @@ class MarkdownDecoration(TextDecoration):
             )
         )
 
-        # Cannot use a for loop because we need to skip some indices
-        i = 0
-        result = []
-
         # Work on byte level with the utf-16le encoding to get the offsets right.
         # The offset will just be half the index we're at.
         text = helpers.add_surrogate(text)
+
+        # Cannot use a for loop because we need to skip some indices
+        i = 0
+        result = []
+        delimiters_stack = []
         while i < len(text):
+            last_opened_delim = (
+                delimiters_stack[-1] if delimiters_stack else (None, None)
+            )
+            IN_CODE_BLOCK = last_opened_delim[0] in ('`', '```')
+            if not IN_CODE_BLOCK and text[i] == '\\':
+                # Remove the backslash and skip the next character
+                text = text[:i] + text[i + 1 :]
+                i += 1
+                continue
+
             m = delim_re.match(text, pos=i)
+            if not m:
+                i += 1
+                continue
 
-            # Did we find some delimiter here at `i`?
-            if m:
-                delim = next(filter(None, m.groups()))
+            delim = next(filter(None, m.groups()))
+            if IN_CODE_BLOCK and delim != last_opened_delim[0]:
+                # ignore other delimiters inside a code block
+                i += len(delim)
+                continue
 
-                # +1 to avoid matching right after (e.g. "****")
-                end = text.find(delim, i + len(delim) + 1)
+            if delim == ']':
+                if last_opened_delim[0] != '[':
+                    raise ParseError('Unexpected "]"')
 
-                # Did we find the earliest closing tag?
-                if end != -1:
+                url_match = URL_RE.match(text, pos=i + 1)
+                if not url_match:
+                    raise ParseError('[] without ()')
 
-                    # Remove the delimiter from the string
-                    text = ''.join(
-                        (
-                            text[:i],
-                            text[i + len(delim): end],
-                            text[end + len(delim):],
-                        )
+                _, start = delimiters_stack.pop()
+                result.append(
+                    types.MessageEntityTextUrl(
+                        offset=start,
+                        length=i - start,
+                        url=helpers.del_surrogate(url_match.group(1)),
                     )
+                )
+                # Remove the "](url)" part
+                text = ''.join((text[:i], text[url_match.span()[1] :]))
+                continue
 
-                    # Check other affected entities
-                    for ent in result:
-                        # If the end is after our start, it is affected
-                        if ent.offset + ent.length > i:
-                            # If the old start is also before ours, it is fully enclosed
-                            if ent.offset <= i:
-                                ent.length -= len(delim) * 2
-                            else:
-                                ent.length -= len(delim)
+            ent = DELIMITERS[delim]
+            if last_opened_delim[0] != delim:
+                # Open a new delimiter
+                delimiters_stack.append((delim, i))
 
-                    # Append the found entity
-                    ent = DELIMITERS[delim]
-                    if ent == types.MessageEntityPre:
-                        result.append(ent(i, end - i - len(delim), ''))  # has 'lang'
-                    else:
-                        result.append(ent(i, end - i - len(delim)))
+                # Remove the delimiter from the string
+                # i should not be incremented
+                text = ''.join((text[:i], text[i + len(delim) :]))
+                continue
 
-                    # No nested entities inside code blocks
-                    if ent in (types.MessageEntityCode, types.MessageEntityPre):
-                        i = end - len(delim)
+            # Close the last opened delimiter
+            _, start = delimiters_stack.pop()
 
-                    continue
+            if ent == types.MessageEntityPre:
+                inner_text = text[start:i]
+                # A language can be specified straight after the opening ``` delimiter
+                lang = inner_text.split('\n', 1)[0]
+                # We try to detect whether it's a language or the user just didn't insert
+                # a line break after the opening delimiter
+                if not LANG_RE.fullmatch(lang):
+                    lang = ''
+                # Remove the language and leading/trailing line breaks
+                inner_text = (
+                    inner_text[len(lang) :].removeprefix('\n').removesuffix('\n')
+                )
 
+                # Remove the delimiter from the string
+                text = ''.join(
+                    (
+                        text[:start],
+                        inner_text,
+                        text[i + len(delim) :],
+                    )
+                )
+                i = start + len(inner_text)
+
+                result.append(ent(start, len(inner_text), lang))
             else:
-                m = URL_RE.match(text, pos=i)
-                if m:
-                    # Replace the whole match with only the inline URL text.
-                    text = ''.join(
-                        (text[: m.start()], m.group(1), text[m.end():])
-                    )
-
-                    delim_size = m.end() - m.start() - len(m.group())
-                    for ent in result:
-                        # If the end is after our start, it is affected
-                        if ent.offset + ent.length > m.start():
-                            ent.length -= delim_size
-
-                    result.append(
-                        types.MessageEntityTextUrl(
-                            offset=m.start(),
-                            length=len(m.group(1)),
-                            url=helpers.del_surrogate(m.group(2)),
-                        )
-                    )
-                    i += len(m.group(1))
-                    continue
-
-            i += 1
+                result.append(ent(start, i - start))
+                # Remove the delimiter from the string
+                text = ''.join((text[:i], text[i + len(delim) :]))
+            continue
 
         text = helpers.strip_text(text, result)
         return helpers.del_surrogate(text), result

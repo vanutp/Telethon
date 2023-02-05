@@ -4,13 +4,17 @@ from typing import List, Tuple, Optional, Generator
 from telethon.tl import types
 
 
+class ParseError(Exception):
+    pass
+
+
 class TextDecoration(ABC):
     @abstractmethod
     def apply_entity(self, entity: types.TypeMessageEntity, text: str) -> str:
         ...
 
     @abstractmethod
-    def quote(self, text: str) -> str:
+    def quote(self, text: str, entity: Optional[types.TypeMessageEntity]) -> str:
         ...
 
     @abstractmethod
@@ -36,7 +40,7 @@ class TextDecoration(ABC):
         return "".join(
             self._unparse_entities(
                 self._add_surrogates(text),
-                sorted(entities, key=lambda item: item.offset) if entities else [],
+                sorted(entities, key=lambda item: (item.offset, -item.length)) if entities else [],
             )
         )
 
@@ -46,6 +50,7 @@ class TextDecoration(ABC):
         entities: List[types.TypeMessageEntity],
         offset: Optional[int] = None,
         length: Optional[int] = None,
+        inside_entity: Optional[types.TypeMessageEntity] = None,
     ) -> Generator[str, None, None]:
         if offset is None:
             offset = 0
@@ -56,7 +61,8 @@ class TextDecoration(ABC):
                 continue
             if entity.offset * 2 > offset:
                 yield self.quote(
-                    self._remove_surrogates(text[offset : entity.offset * 2])
+                    self._remove_surrogates(text[offset : entity.offset * 2]),
+                    entity,
                 )
             start = entity.offset * 2
             offset = entity.offset * 2 + entity.length * 2
@@ -68,13 +74,19 @@ class TextDecoration(ABC):
                 entity,
                 "".join(
                     self._unparse_entities(
-                        text, sub_entities, offset=start, length=offset
+                        text,
+                        sub_entities,
+                        offset=start,
+                        length=offset,
+                        inside_entity=entity,
                     )
                 ),
             )
 
         if offset < length:
-            yield self.quote(self._remove_surrogates(text[offset:length]))
+            yield self.quote(
+                self._remove_surrogates(text[offset:length]), inside_entity
+            )
 
     @staticmethod
     def _add_surrogates(text: str):
@@ -85,4 +97,4 @@ class TextDecoration(ABC):
         return text.decode("utf-16-le")
 
 
-__all__ = ["TextDecoration"]
+__all__ = ["TextDecoration", "ParseError"]

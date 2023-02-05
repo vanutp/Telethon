@@ -1,3 +1,40 @@
+Telethon-v1.24
+==============
+
+vanutp's fork of v1.24 branch of telethon
+
+Parse modes
+-----------
+
+* Parse modes are reworked to be more accurate and more compatible with TDLib/Bot API.
+
+HTML:
+
+* Custom emojis are supported via ``<tg-emoji>`` or ``<emoji>`` tags with ``document``, ``document_id``, ``document-id``, ``emoji``, ``emoji_id`` or ``emoji-id`` attributes.
+* Spoilers are supported via either ``<span class="tg-spoiler">`` or ``<tg-spoiler>`` tags.
+* Pre blocks with language are supported via ``<pre><code class="language-<name>">`` tags.
+
+
+Markdown:
+
+* This implementation tries to be compatible with MarkdownV2 from TDLib/Bot API.
+* The unparser is ported from aiogram, the parser is written from scratch.
+* Escaping is done via backslash. Any character can be escaped.
+* All entities and escapes are ignored in pre and code blocks.
+  That means that you can't use ``````` in pre block and ````` in code block at all,
+  but you can use any other characters inside them without escaping.
+
+* All entities and escapes are ignored in URLs (but not in URL captions).
+  That means you can't use ``)`` in URL.
+  For example, ``[*bold \*text*](https://example.com/\\))`` is equivalent to
+  ``<a href="https://example.com/\\"><b>bold *text</b></a>)``.
+
+* You must escape ``_*[]()~`|\`` characters in any other context.
+  Note that escaping ``>#+-={}.!`` characters is not required.
+
+* Custom emojis are supported via ``[👍](tg://emoji?id=6334815245336315702)'`` syntax.
+
+
 Telethon
 ========
 .. epigraph::

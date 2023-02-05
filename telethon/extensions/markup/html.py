@@ -1,7 +1,7 @@
 import html as _html
 from collections import deque
 from html.parser import HTMLParser
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 from telethon import helpers
 from telethon.extensions.markup.base import TextDecoration
@@ -26,11 +26,11 @@ class HTMLToTelegramParser(HTMLParser):
         args = {}
         if tag == 'strong' or tag == 'b':
             EntityType = types.MessageEntityBold
-        elif tag == 'em' or tag == 'i':
+        elif tag in ['em', 'i']:
             EntityType = types.MessageEntityItalic
-        elif tag == 'u':
+        elif tag in ['u', 'ins']:
             EntityType = types.MessageEntityUnderline
-        elif tag == 'del' or tag == 's':
+        elif tag in ['del', 's', 'strike']:
             EntityType = types.MessageEntityStrike
         elif tag == 'blockquote':
             EntityType = types.MessageEntityBlockquote
@@ -54,7 +54,10 @@ class HTMLToTelegramParser(HTMLParser):
             args['language'] = ''
         elif tag == 'tg-emoji' or tag == 'emoji':
             EntityType = types.MessageEntityCustomEmoji
-            args['document_id'] = int(attrs.get('emoji-id') or attrs.get('document_id'))
+            for attr in ('document', 'document_id', 'document-id', 'emoji', 'emoji_id', 'emoji-id'):
+                if attr in attrs:
+                    args['document_id'] = int(attrs[attr])
+                    break
         elif tag == 'span' and attrs['class'] == 'tg-spoiler' or tag == 'tg-spoiler':
             EntityType = types.MessageEntitySpoiler
         elif tag == 'a':
@@ -135,9 +138,9 @@ class HtmlDecoration(TextDecoration):
             return f'<a href="tg://user?id={entity.user_id}">{text}</a>'
         elif type_ == types.MessageEntityCustomEmoji:
             return f'<tg-emoji emoji-id="{entity.document_id}">{text}</tg-emoji>'
-        return self.quote(text)
+        return self.quote(text, entity)
 
-    def quote(self, value: str) -> str:
+    def quote(self, value: str, entity: Optional[types.TypeMessageEntity]) -> str:
         return _html.escape(value, quote=False)
 
     def parse(self, text: str) -> Tuple[str, List[types.TypeMessageEntity]]:
