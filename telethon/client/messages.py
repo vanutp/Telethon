@@ -1045,7 +1045,7 @@ class MessageMethods:
                 from it, so the next parameter will be assumed to be the
                 message text.
 
-                You may also pass a :tl:`InputBotInlineMessageID`,
+                You may also pass a :tl:`InputBotInlineMessageID` or :tl:`InputBotInlineMessageID64`,
                 which is the only way to edit messages that were sent
                 after the user selects an inline query result.
 
@@ -1117,7 +1117,7 @@ class MessageMethods:
 
         Returns
             The edited `Message <telethon.tl.custom.message.Message>`,
-            unless `entity` was a :tl:`InputBotInlineMessageID` in which
+            unless `entity` was a :tl:`InputBotInlineMessageID` or :tl:`InputBotInlineMessageID64` in which
             case this method returns a boolean.
 
         Raises
@@ -1143,7 +1143,7 @@ class MessageMethods:
                 # or
                 await client.edit_message(message, 'hello!!!')
         """
-        if isinstance(entity, types.InputBotInlineMessageID):
+        if isinstance(entity, (types.InputBotInlineMessageID, types.InputBotInlineMessageID64)):
             text = text or message
             message = entity
         elif isinstance(entity, types.Message):
@@ -1159,7 +1159,7 @@ class MessageMethods:
                 attributes=attributes,
                 force_document=force_document)
 
-        if isinstance(entity, types.InputBotInlineMessageID):
+        if isinstance(entity, (types.InputBotInlineMessageID, types.InputBotInlineMessageID64)):
             request = functions.messages.EditInlineBotMessageRequest(
                 id=entity,
                 message=text,
