@@ -821,6 +821,8 @@ class MessageMethods:
         entity = await self.get_input_entity(entity)
         if comment_to is not None:
             entity, reply_to = await self._get_comment_data(entity, comment_to)
+        else:
+            reply_to = utils.get_message_id(reply_to)
 
         if isinstance(message, types.Message):
             if buttons is None:
@@ -850,7 +852,7 @@ class MessageMethods:
                 message=message.message or '',
                 silent=silent,
                 background=background,
-                reply_to_msg_id=utils.get_message_id(reply_to),
+                reply_to=None if reply_to is None else types.InputReplyToMessage(reply_to),
                 reply_markup=markup,
                 entities=message.entities,
                 clear_draft=clear_draft,
@@ -872,7 +874,7 @@ class MessageMethods:
                 message=message,
                 entities=formatting_entities,
                 no_webpage=not link_preview,
-                reply_to_msg_id=utils.get_message_id(reply_to),
+                reply_to=None if reply_to is None else types.InputReplyToMessage(reply_to),
                 clear_draft=clear_draft,
                 silent=silent,
                 background=background,
@@ -891,7 +893,8 @@ class MessageMethods:
                 media=result.media,
                 entities=result.entities,
                 reply_markup=request.reply_markup,
-                ttl_period=result.ttl_period
+                ttl_period=result.ttl_period,
+                reply_to=request.reply_to
             )
             message._finish_init(self, {}, entity)
             return message

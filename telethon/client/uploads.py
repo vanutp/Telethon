@@ -431,8 +431,9 @@ class UploadMethods:
             raise TypeError('Cannot use {!r} as file'.format(file))
 
         markup = self.build_reply_markup(buttons)
+        reply_to = None if reply_to is None else types.InputReplyToMessage(reply_to)
         request = functions.messages.SendMediaRequest(
-            entity, media, reply_to_msg_id=reply_to, message=caption,
+            entity, media, reply_to=reply_to, message=caption,
             entities=msg_entities, reply_markup=markup, silent=silent,
             schedule_date=schedule, clear_draft=clear_draft,
             background=background
@@ -507,7 +508,7 @@ class UploadMethods:
 
         # Now we can construct the multi-media request
         request = functions.messages.SendMultiMediaRequest(
-            entity, reply_to_msg_id=reply_to, multi_media=media,
+            entity, reply_to=None if reply_to is None else types.InputReplyToMessage(reply_to), multi_media=media,
             silent=silent, schedule_date=schedule, clear_draft=clear_draft,
             background=background
         )
