@@ -177,9 +177,9 @@ class Message(ChatGetter, SenderGetter, TLObject):
             id: int, peer_id: types.TypePeer,
             date: Optional[datetime]=None, message: Optional[str]=None,
             # Copied from Message.__init__ signature
-            out: Optional[bool]=None, mentioned: Optional[bool]=None, media_unread: Optional[bool]=None, silent: Optional[bool]=None, post: Optional[bool]=None, from_scheduled: Optional[bool]=None, legacy: Optional[bool]=None, edit_hide: Optional[bool]=None, pinned: Optional[bool]=None, noforwards: Optional[bool]=None, invert_media: Optional[bool]=None, offline: Optional[bool]=None, from_id: Optional[types.TypePeer]=None, from_boosts_applied: Optional[int]=None, saved_peer_id: Optional[types.TypePeer]=None, fwd_from: Optional['TypeMessageFwdHeader']=None, via_bot_id: Optional[int]=None, via_business_bot_id: Optional[int]=None, reply_to: Optional[types.TypeMessageReplyHeader]=None, media: Optional[types.TypeMessageMedia]=None, reply_markup: Optional[types.TypeReplyMarkup]=None, entities: Optional[List[types.TypeMessageEntity]]=None, views: Optional[int]=None, forwards: Optional[int]=None, replies: Optional[types.TypeMessageReplies]=None, edit_date: Optional[datetime]=None, post_author: Optional[str]=None, grouped_id: Optional[int]=None, reactions: Optional[types.TypeMessageReactions]=None, restriction_reason: Optional[List[types.TypeRestrictionReason]]=None, ttl_period: Optional[int]=None, quick_reply_shortcut_id: Optional[int]=None,
+            out: Optional[bool]=None, mentioned: Optional[bool]=None, media_unread: Optional[bool]=None, silent: Optional[bool]=None, post: Optional[bool]=None, from_scheduled: Optional[bool]=None, legacy: Optional[bool]=None, edit_hide: Optional[bool]=None, pinned: Optional[bool]=None, noforwards: Optional[bool]=None, invert_media: Optional[bool]=None, offline: Optional[bool]=None, video_processing_pending: Optional[bool]=None, from_id: Optional['TypePeer']=None, from_boosts_applied: Optional[int]=None, saved_peer_id: Optional['TypePeer']=None, fwd_from: Optional['TypeMessageFwdHeader']=None, via_bot_id: Optional[int]=None, via_business_bot_id: Optional[int]=None, reply_to: Optional['TypeMessageReplyHeader']=None, media: Optional['TypeMessageMedia']=None, reply_markup: Optional['TypeReplyMarkup']=None, entities: Optional[List['TypeMessageEntity']]=None, views: Optional[int]=None, forwards: Optional[int]=None, replies: Optional['TypeMessageReplies']=None, edit_date: Optional[datetime]=None, post_author: Optional[str]=None, grouped_id: Optional[int]=None, reactions: Optional['TypeMessageReactions']=None, restriction_reason: Optional[List['TypeRestrictionReason']]=None, ttl_period: Optional[int]=None, quick_reply_shortcut_id: Optional[int]=None, effect: Optional[int]=None, factcheck: Optional['TypeFactCheck']=None, report_delivery_until_date: Optional[datetime]=None, paid_message_stars: Optional[int]=None,
             # Copied from MessageService.__init__ signature
-            action: Optional[types.TypeMessageAction]=None
+            action: Optional[types.TypeMessageAction]=None, reactions_are_possible: Optional[bool]=None
     ):
         # Copied from Message.__init__ body
         self.id = id
@@ -198,6 +198,7 @@ class Message(ChatGetter, SenderGetter, TLObject):
         self.noforwards = noforwards
         self.invert_media = invert_media
         self.offline = offline
+        self.video_processing_pending = video_processing_pending
         self.from_id = from_id
         self.from_boosts_applied = from_boosts_applied
         self.saved_peer_id = saved_peer_id
@@ -218,8 +219,13 @@ class Message(ChatGetter, SenderGetter, TLObject):
         self.restriction_reason = restriction_reason
         self.ttl_period = ttl_period
         self.quick_reply_shortcut_id = quick_reply_shortcut_id
+        self.effect = effect
+        self.factcheck = factcheck
+        self.report_delivery_until_date = report_delivery_until_date
+        self.paid_message_stars = paid_message_stars
         # Copied from MessageService.__init__ body
         self.action = action
+        self.reactions_are_possible = reactions_are_possible
 
         # Convenient storage for custom functions
         # TODO This is becoming a bit of bloat
